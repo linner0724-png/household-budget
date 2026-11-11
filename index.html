@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>간단 가계부</title>
+<style>
+  :root {
+    --bg: #000;
+    --card: #15171c;
+    --line: #262a33;
+    --text: #e8eaee;
+    --muted: #8b92a0;
+    --income: #3fcf6e;
+    --expense: #ff5c63;
+    --accent: #4f8cff;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 24px 16px;
+    font-family: "Malgun Gothic", -apple-system, sans-serif;
+    background: var(--bg); color: var(--text);
+  }
+  .wrap { max-width: 820px; margin: 0 auto; }
+  h1 { margin: 0 0 20px; font-size: 26px; }
+  h2 { margin: 0 0 14px; font-size: 16px; color: var(--muted); font-weight: normal; }
+  .card {
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 12px; padding: 18px; margin-bottom: 16px;
+  }
+  .income { color: var(--income); }
+  .expense { color: var(--expense); }
+  .muted { color: var(--muted); }
+
+  /* 기간 선택 */
+  .toolbar { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+  .toolbar label { font-size: 14px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+
+  /* 요약 */
+  .summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  .summary div { text-align: center; }
+  .summary span { display: block; font-size: 13px; color: var(--muted); margin-bottom: 4px; }
+  .summary strong { font-size: 20px; }
+
+  /* 세부 지표 */
+  .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; }
+  .metric { background: #0d0f13; border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+  .metric span { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+  .metric strong { font-size: 16px; }
+  .metric small { display: block; font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+  /* 폼 */
+  form { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
+  input, select, button {
+    padding: 9px 10px; font-size: 14px; border: 1px solid var(--line);
+    border-radius: 8px; font-family: inherit; width: 100%;
+    background: #0d0f13; color: var(--text);
+  }
+  input[type="checkbox"] { width: auto; }
+  .toolbar input, .toolbar select { width: auto; }
+  input::-webkit-calendar-picker-indicator { filter: invert(1); }
+  button { background: var(--accent); color: #fff; border: none; cursor: pointer; font-weight: bold; }
+  button:hover { filter: brightness(1.15); }
+
+  /* 탭 */
+  .tabs { display: flex; gap: 6px; margin-bottom: 14px; }
+  .tabs button { width: auto; background: #0d0f13; color: var(--muted); border: 1px solid var(--line); padding: 6px 14px; }
+  .tabs button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+  /* 분류별 막대 */
+  .cat-row { display: grid; grid-template-columns: 80px 1fr 130px; gap: 10px; align-items: center; margin-bottom: 10px; font-size: 14px; }
+  .bar-bg { background: #0d0f13; border-radius: 6px; height: 14px; overflow: hidden; }
+  .bar { height: 100%; border-radius: 6px; }
+  .cat-row .val { text-align: right; white-space: nowrap; }
+  .cat-row .val small { color: var(--muted); margin-left: 4px; }
+
+  /* 월별 추이 */
+  .trend { display: flex; align-items: flex-end; gap: 8px; height: 180px; padding-top: 10px; border-bottom: 1px solid var(--line); }
+  .trend .col { flex: 1; display: flex; flex-direction: column; align-items: center; height: 100%; justify-content: flex-end; }
+  .trend .bars { display: flex; gap: 3px; align-items: flex-end; height: 100%; width: 100%; justify-content: center; }
+  .trend .b { width: 40%; max-width: 22px; border-radius: 4px 4px 0 0; min-height: 1px; }
+  .trend-labels { display: flex; gap: 8px; margin-top: 6px; }
+  .trend-labels div { flex: 1; text-align: center; font-size: 12px; color: var(--muted); }
+  .trend-labels div.cur { color: var(--text); font-weight: bold; }
+  .legend { display: flex; gap: 14px; font-size: 12px; color: var(--muted); margin-top: 10px; }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: middle; }
+
+  /* 요일별 */
+  .week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; text-align: center; }
+  .week .day { background: #0d0f13; border: 1px solid var(--line); border-radius: 8px; padding: 10px 2px; }
+  .week .day b { display: block; font-size: 13px; margin-bottom: 4px; }
+  .week .day span { font-size: 11px; color: var(--muted); }
+
+  /* 목록 */
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { padding: 9px 6px; border-bottom: 1px solid var(--line); text-align: left; }
+  th { color: var(--muted); font-weight: normal; font-size: 13px; }
+  td.amt, th.amt { text-align: right; white-space: nowrap; }
+  td.amt { font-weight: bold; }
+  .del { background: none; color: var(--muted); border: none; width: auto; padding: 2px 6px; font-size: 16px; }
+  .del:hover { color: var(--expense); filter: none; }
+  .empty { text-align: center; color: var(--muted); padding: 24px; }
+
+  @media (max-width: 560px) {
+    .summary { grid-template-columns: repeat(2, 1fr); }
+    .summary strong { font-size: 17px; }
+    .cat-row { grid-template-columns: 64px 1fr 100px; font-size: 13px; }
+    .cat-row .val small { display: none; }
+    .hide-sm { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>💰 간단 가계부</h1>
+
+  <div class="card toolbar">
+    <label>기간 <input type="month" id="month"></label>
+    <label><input type="checkbox" id="allMonths"> 전체 기간</label>
+  </div>
+
+  <div class="card summary">
+    <div><span>수입</span><strong class="income" id="sumIncome">0원</strong></div>
+    <div><span>지출</span><strong class="expense" id="sumExpense">0원</strong></div>
+    <div><span>잔액</span><strong id="sumBalance">0원</strong></div>
+    <div><span>저축률</span><strong id="saveRate">-</strong></div>
+  </div>
+
+  <div class="card">
+    <form id="form">
+      <input type="date" id="date" required>
+      <select id="type">
+        <option value="expense">지출</option>
+        <option value="income">수입</option>
+      </select>
+      <select id="category"></select>
+      <input type="text" id="memo" placeholder="내용">
+      <input type="number" id="amount" placeholder="금액" min="1" required>
+      <button type="submit">추가</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>📊 주요 지표</h2>
+    <div class="metrics" id="metrics"></div>
+  </div>
+
+  <div class="card">
+    <h2>🗂 분류별 통계</h2>
+    <div class="tabs">
+      <button type="button" data-tab="expense" class="on">지출</button>
+      <button type="button" data-tab="income">수입</button>
+    </div>
+    <div id="catStats"></div>
+  </div>
+
+  <div class="card">
+    <h2>📈 최근 6개월 추이</h2>
+    <div class="trend" id="trend"></div>
+    <div class="trend-labels" id="trendLabels"></div>
+    <div class="legend">
+      <span><i style="background:var(--income)"></i>수입</span>
+      <span><i style="background:var(--expense)"></i>지출</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>📅 요일별 지출</h2>
+    <div class="week" id="week"></div>
+  </div>
+
+  <div class="card">
+    <h2>🧾 내역</h2>
+    <table>
+      <thead>
+        <tr><th>날짜</th><th>분류</th><th class="hide-sm">내용</th><th class="amt">금액</th><th></th></tr>
+      </thead>
+      <tbody id="list"></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+  const KEY = 'simple-ledger';
+  const CATEGORIES = {
+    expense: ['식비', '교통', '쇼핑', '주거/통신', '의료', '문화/여가', '기타'],
+    income: ['월급', '용돈', '부수입', '기타']
+  };
+  const COLORS = ['#4f8cff', '#ff5c63', '#f5b83d', '#3fcf6e', '#b07cff', '#2ec4d6', '#ff8c42', '#8b92a0'];
+  const DAYS = ['일', '월', '화', '수', '목', '금', '토'];
+
+  const $ = id => document.getElementById(id);
+  let items = load();
+  let catTab = 'expense';
+
+  function load() {
+    try { return JSON.parse(localStorage.getItem(KEY)) || []; }
+    catch { return []; }
+  }
+  function save() {
+    try { localStorage.setItem(KEY, JSON.stringify(items)); } catch {}
+  }
+
+  const won = n => Math.round(n).toLocaleString('ko-KR') + '원';
+  const shortWon = n => n >= 10000 ? (n / 10000).toFixed(n >= 1000000 ? 0 : 1).replace(/\.0$/, '') + '만' : Math.round(n).toLocaleString('ko-KR');
+  const localDate = d => new Date(d - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+  const today = () => localDate(new Date());
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const sum = (arr, type) => arr.filter(it => it.type === type).reduce((s, it) => s + it.amount, 0);
+
+  function shiftMonth(ym, delta) {
+    const [y, m] = ym.split('-').map(Number);
+    const d = new Date(y, m - 1 + delta, 1);
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+  }
+  function daysIn(ym) {
+    const [y, m] = ym.split('-').map(Number);
+    return new Date(y, m, 0).getDate();
+  }
+
+  function fillCategories() {
+    $('category').innerHTML = CATEGORIES[$('type').value]
+      .map(c => `<option>${c}</option>`).join('');
+  }
+
+  function periodItems() {
+    if ($('allMonths').checked) return items;
+    return items.filter(it => it.date.startsWith($('month').value));
+  }
+
+  /* ---------- 요약 ---------- */
+  function renderSummary(list) {
+    const inc = sum(list, 'income'), exp = sum(list, 'expense');
+    $('sumIncome').textContent = won(inc);
+    $('sumExpense').textContent = won(exp);
+    $('sumBalance').textContent = won(inc - exp);
+    $('sumBalance').className = inc - exp < 0 ? 'expense' : '';
+    $('saveRate').textContent = inc > 0 ? Math.round((inc - exp) / inc * 100) + '%' : '-';
+    $('saveRate').className = inc > 0 && inc - exp < 0 ? 'expense' : '';
+  }
+
+  /* ---------- 주요 지표 ---------- */
+  function renderMetrics(list) {
+    const all = $('allMonths').checked;
+    const month = $('month').value;
+    const expenses = list.filter(it => it.type === 'expense');
+    const exp = sum(list, 'expense');
+    const cards = [];
+
+    // 일평균 지출
+    let days;
+    if (all) {
+      const dates = items.map(it => it.date).sort();
+      days = dates.length ? Math.round((new Date(dates[dates.length - 1]) - new Date(dates[0])) / 86400000) + 1 : 0;
+    } else {
+      days = month === today().slice(0, 7) ? Number(today().slice(8)) : daysIn(month);
+    }
+    cards.push(['일평균 지출', days ? won(exp / days) : '-', days ? `${days}일 기준` : '']);
+
+    // 전월 대비
+    if (!all) {
+      const prev = sum(items.filter(it => it.date.startsWith(shiftMonth(month, -1))), 'expense');
+      if (prev > 0) {
+        const diff = exp - prev, pct = Math.round(diff / prev * 100);
+        cards.push(['전월 대비 지출',
+          `<span class="${diff > 0 ? 'expense' : 'income'}">${diff > 0 ? '▲' : diff < 0 ? '▼' : ''} ${Math.abs(pct)}%</span>`,
+          `지난달 ${won(prev)}`]);
+      } else {
+        cards.push(['전월 대비 지출', '-', '지난달 내역 없음']);
+      }
+    }
+
+    // 최대 지출
+    const top = expenses.slice().sort((a, b) => b.amount - a.amount)[0];
+    cards.push(['최대 지출', top ? won(top.amount) : '-',
+      top ? `${top.date.slice(5)} · ${esc(top.category)}${top.memo ? ' · ' + esc(top.memo) : ''}` : '']);
+
+    // 가장 많이 쓴 분류
+    const byCat = groupBy(expenses);
+    const topCat = Object.entries(byCat).sort((a, b) => b[1] - a[1])[0];
+    cards.push(['최다 지출 분류', topCat ? esc(topCat[0]) : '-',
+      topCat ? `${won(topCat[1])} (${Math.round(topCat[1] / exp * 100)}%)` : '']);
+
+    // 건수 / 건당 평균
+    cards.push(['지출 건수', expenses.length + '건',
+      expenses.length ? `건당 평균 ${won(exp / expenses.length)}` : '']);
+
+    // 무지출일
+    if (!all) {
+      const spentDays = new Set(expenses.map(it => it.date)).size;
+      cards.push(['무지출일', Math.max(days - spentDays, 0) + '일', `${days}일 중`]);
+    }
+
+    $('metrics').innerHTML = cards.map(([t, v, s]) =>
+      `<div class="metric"><span>${t}</span><strong>${v}</strong>${s ? `<small>${s}</small>` : ''}</div>`
+    ).join('');
+  }
+
+  function groupBy(list) {
+    const g = {};
+    list.forEach(it => g[it.category] = (g[it.category] || 0) + it.amount);
+    return g;
+  }
+
+  /* ---------- 분류별 ---------- */
+  function renderCategories(list) {
+    const target = list.filter(it => it.type === catTab);
+    const total = target.reduce((s, it) => s + it.amount, 0);
+    const counts = {};
+    target.forEach(it => counts[it.category] = (counts[it.category] || 0) + 1);
+    const rows = Object.entries(groupBy(target)).sort((a, b) => b[1] - a[1]);
+    if (!rows.length) {
+      $('catStats').innerHTML = '<div class="empty">내역이 없습니다</div>';
+      return;
+    }
+    const max = rows[0][1];
+    $('catStats').innerHTML = rows.map(([cat, amt], i) => `
+      <div class="cat-row">
+        <div>${esc(cat)} <small class="muted">${counts[cat]}건</small></div>
+        <div class="bar-bg"><div class="bar" style="width:${amt / max * 100}%;background:${COLORS[i % COLORS.length]}"></div></div>
+        <div class="val">${won(amt)}<small>${Math.round(amt / total * 100)}%</small></div>
+      </div>`).join('');
+  }
+
+  /* ---------- 6개월 추이 ---------- */
+  function renderTrend() {
+    const base = $('allMonths').checked ? today().slice(0, 7) : $('month').value;
+    const months = [];
+    for (let i = 5; i >= 0; i--) months.push(shiftMonth(base, -i));
+    const data = months.map(m => {
+      const l = items.filter(it => it.date.startsWith(m));
+      return { m, inc: sum(l, 'income'), exp: sum(l, 'expense') };
+    });
+    const max = Math.max(1, ...data.map(d => Math.max(d.inc, d.exp)));
+    $('trend').innerHTML = data.map(d => `
+      <div class="col">
+        <div class="bars">
+          <div class="b" style="height:${d.inc / max * 100}%;background:var(--income)" title="수입 ${won(d.inc)}"></div>
+          <div class="b" style="height:${d.exp / max * 100}%;background:var(--expense)" title="지출 ${won(d.exp)}"></div>
+        </div>
+      </div>`).join('');
+    $('trendLabels').innerHTML = data.map(d => `
+      <div class="${d.m === base ? 'cur' : ''}">${Number(d.m.slice(5))}월<br>
+        <span class="expense">${d.exp ? shortWon(d.exp) : ''}</span></div>`).join('');
+  }
+
+  /* ---------- 요일별 ---------- */
+  function renderWeek(list) {
+    const tot = [0, 0, 0, 0, 0, 0, 0], cnt = [0, 0, 0, 0, 0, 0, 0];
+    list.filter(it => it.type === 'expense').forEach(it => {
+      const [y, m, d] = it.date.split('-').map(Number);
+      const w = new Date(y, m - 1, d).getDay();
+      tot[w] += it.amount; cnt[w]++;
+    });
+    const max = Math.max(...tot);
+    $('week').innerHTML = DAYS.map((name, i) => {
+      const alpha = max ? 0.15 + tot[i] / max * 0.6 : 0;
+      return `<div class="day" style="${tot[i] ? `background:rgba(255,92,99,${alpha})` : ''}">
+        <b class="${i === 0 ? 'expense' : i === 6 ? 'muted' : ''}">${name}</b>
+        <div>${tot[i] ? shortWon(tot[i]) : '-'}</div>
+        <span>${cnt[i]}건</span></div>`;
+    }).join('');
+  }
+
+  /* ---------- 내역 ---------- */
+  function renderList(list) {
+    const shown = list.slice().sort((a, b) => b.date.localeCompare(a.date) || b.id - a.id);
+    const all = $('allMonths').checked;
+    $('list').innerHTML = shown.length ? shown.map(it => `
+      <tr>
+        <td>${all ? it.date : it.date.slice(5)}</td>
+        <td>${esc(it.category)}</td>
+        <td class="hide-sm">${esc(it.memo)}</td>
+        <td class="amt ${it.type}">${it.type === 'income' ? '+' : '-'}${won(it.amount)}</td>
+        <td><button class="del" data-id="${it.id}" title="삭제">✕</button></td>
+      </tr>`).join('')
+      : '<tr><td colspan="5" class="empty">내역이 없습니다</td></tr>';
+  }
+
+  function render() {
+    $('month').disabled = $('allMonths').checked;
+    const list = periodItems();
+    renderSummary(list);
+    renderMetrics(list);
+    renderCategories(list);
+    renderTrend();
+    renderWeek(list);
+    renderList(list);
+  }
+
+  /* ---------- 이벤트 ---------- */
+  $('form').addEventListener('submit', e => {
+    e.preventDefault();
+    const amount = Number($('amount').value);
+    if (!amount || amount <= 0) return;
+    items.push({
+      id: Date.now(),
+      date: $('date').value,
+      type: $('type').value,
+      category: $('category').value,
+      memo: $('memo').value.trim(),
+      amount
+    });
+    save();
+    $('month').value = $('date').value.slice(0, 7);
+    $('memo').value = '';
+    $('amount').value = '';
+    $('amount').focus();
+    render();
+  });
+
+  $('list').addEventListener('click', e => {
+    const id = e.target.dataset.id;
+    if (!id || !confirm('이 항목을 삭제할까요?')) return;
+    items = items.filter(it => it.id !== Number(id));
+    save();
+    render();
+  });
+
+  document.querySelectorAll('.tabs button').forEach(btn => btn.addEventListener('click', () => {
+    catTab = btn.dataset.tab;
+    document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('on', b === btn));
+    renderCategories(periodItems());
+  }));
+
+  $('type').addEventListener('change', fillCategories);
+  $('month').addEventListener('change', render);
+  $('allMonths').addEventListener('change', render);
+
+  $('date').value = today();
+  $('month').value = today().slice(0, 7);
+  fillCategories();
+  render();
+</script>
+</body>
+</html>
